@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Riyada OpenBanking Demo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 2rem;
+        background: #f5f7fa;
+        color: #102a43;
+      }
+      header {
+        margin-bottom: 2rem;
+      }
+      section {
+        background: #fff;
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(16, 42, 67, 0.08);
+        margin-bottom: 1.5rem;
+      }
+      button {
+        background: #2266d4;
+        color: #fff;
+        border: none;
+        padding: 0.6rem 1.2rem;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button:disabled {
+        background: #bcccdc;
+      }
+      pre {
+        background: #0b2545;
+        color: #f0f4f8;
+        padding: 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+      }
+      label {
+        display: block;
+        margin-bottom: 0.4rem;
+        font-weight: bold;
+      }
+      input {
+        width: 100%;
+        padding: 0.5rem;
+        margin-bottom: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Riyada OpenBanking Mock Journey</h1>
+      <p>
+        This static page demonstrates the mocked CIBA login and consent APIs exposed by the MVP. Use
+        it to fire the CIBA backchannel request, simulate Nafath approval and generate developer
+        tokens.
+      </p>
+    </header>
+
+    <section>
+      <h2>1. Initiate CIBA request</h2>
+      <label for="loginHint">Login hint (e.g. national ID)</label>
+      <input id="loginHint" value="198201011234" />
+      <label for="scope">Scopes</label>
+      <input id="scope" value="accounts.read payments.write" />
+      <button id="startCiba">Initiate backchannel login</button>
+      <pre id="requestOutput"></pre>
+    </section>
+
+    <section>
+      <h2>2. Mock Nafath approval</h2>
+      <p>Approve or deny the push request to unlock tokens.</p>
+      <button id="approve">Approve</button>
+      <button id="deny">Deny</button>
+      <pre id="nafathOutput"></pre>
+    </section>
+
+    <section>
+      <h2>3. Poll for tokens</h2>
+      <button id="poll">Poll token endpoint</button>
+      <pre id="tokenOutput"></pre>
+    </section>
+
+    <script>
+      const state = {
+        authReqId: null,
+      };
+
+      const render = (id, data) => {
+        document.getElementById(id).textContent = JSON.stringify(data, null, 2);
+      };
+
+      const withHeaders = (extra = {}) => ({
+        'Content-Type': 'application/json',
+        'x-nonce': `${Date.now()}`,
+        ...extra,
+      });
+
+      document.getElementById('startCiba').addEventListener('click', async () => {
+        const loginHint = document.getElementById('loginHint').value;
+        const scope = document.getElementById('scope').value;
+        const res = await fetch('/ciba/auth/request', {
+          method: 'POST',
+          headers: withHeaders(),
+          body: JSON.stringify({ client_id: 'demo-client', login_hint: loginHint, scope }),
+        });
+        const data = await res.json();
+        state.authReqId = data.auth_req_id;
+        render('requestOutput', data);
+      });
+
+      document.getElementById('approve').addEventListener('click', async () => {
+        if (!state.authReqId) return;
+        const res = await fetch('/mock/nafath/approve', {
+          method: 'POST',
+          headers: withHeaders(),
+          body: JSON.stringify({ auth_req_id: state.authReqId, subject: 'demo-user' }),
+        });
+        render('nafathOutput', await res.json());
+      });
+
+      document.getElementById('deny').addEventListener('click', async () => {
+        if (!state.authReqId) return;
+        const res = await fetch('/mock/nafath/deny', {
+          method: 'POST',
+          headers: withHeaders(),
+          body: JSON.stringify({ auth_req_id: state.authReqId }),
+        });
+        render('nafathOutput', await res.json());
+      });
+
+      document.getElementById('poll').addEventListener('click', async () => {
+        if (!state.authReqId) return;
+        const res = await fetch('/ciba/auth/token', {
+          method: 'POST',
+          headers: withHeaders(),
+          body: JSON.stringify({ auth_req_id: state.authReqId }),
+        });
+        render('tokenOutput', await res.json());
+      });
+    </script>
+  </body>
+</html>

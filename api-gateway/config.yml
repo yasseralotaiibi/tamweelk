@@ -1,0 +1,18 @@
+_format_version: "1.1"
+services:
+  - name: auth-server
+    url: https://auth-server:8443
+    routes:
+      - name: ciba
+        paths: ["/ciba"]
+      - name: oauth
+        paths: ["/oauth"]
+  - name: resource-server
+    url: http://resource-server:8080
+    routes:
+      - name: accounts
+        paths: ["/accounts","/transactions","/payments"]
+plugins:
+  - name: rate-limiting
+    config:
+      minute: 100

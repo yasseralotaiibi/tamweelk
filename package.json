@@ -1,0 +1,69 @@
+{
+  "name": "riyada-openbanking-mvp",
+  "version": "0.1.0",
+  "description": "Riyada OpenBanking Platform MVP aligned with SAMA Open Banking and FAPI Advanced + CIBA",
+  "main": "dist/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "lint": "eslint 'src/**/*.ts' --max-warnings=0",
+    "format": "prettier --write .",
+    "test": "jest",
+    "postinstall": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "prisma db seed"
+  },
+  "keywords": [
+    "open-banking",
+    "saudi",
+    "fapi",
+    "ciba"
+  ],
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@prisma/client": "^5.13.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-async-handler": "^1.2.0",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "ioredis": "^5.4.2",
+    "jose": "^5.2.4",
+    "jsonwebtoken": "^9.0.2",
+    "swagger-ui-express": "^5.0.1",
+    "uuid": "^9.0.1",
+    "winston": "^3.13.0",
+    "yamljs": "^0.3.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.12",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^20.12.7",
+    "@types/supertest": "^2.0.16",
+    "@types/swagger-ui-express": "^4.1.8",
+    "@types/uuid": "^9.0.7",
+    "@types/yamljs": "^0.2.34",
+    "@typescript-eslint/eslint-plugin": "^7.8.0",
+    "@typescript-eslint/parser": "^7.8.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.1.3",
+    "jest": "^29.7.0",
+    "prettier": "^3.2.5",
+    "prisma": "^5.13.0",
+    "supertest": "^6.3.4",
+    "ts-jest": "^29.1.2",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.5.4"
+  },
+  "prisma": {
+    "seed": "ts-node --transpile-only prisma/seed.ts"
+  }
+}

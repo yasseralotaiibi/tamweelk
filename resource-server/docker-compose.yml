@@ -1,0 +1,26 @@
+version: '3'
+services:
+  auth-server:
+    build: ./auth-server
+    ports:
+      - "8443:8443"
+  resource-server:
+    build: ./resource-server
+    ports:
+      - "8080:8080"
+  consent-service:
+    build: ./consent-service
+    ports:
+      - "3000:3000"
+  client-app:
+    build: ./client-app
+    depends_on:
+      - auth-server
+      - resource-server
+  api-gateway:
+    image: kong:2.8
+    ports:
+      - "8000:8000"
+      - "8444:8444"
+    volumes:
+      - ./api-gateway/config.yml:/kong/config.yml

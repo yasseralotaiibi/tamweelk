@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Riyada Open Banking Demo</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>Riyada Open Banking Demo</h1>
+      <p>
+        This lightweight UI demonstrates the mocked CIBA login and consent flows required for Saudi Open Banking.
+        Use it to walk through the consent-as-a-service experience.
+      </p>
+
+      <section>
+        <h2>1. Initiate CIBA Login</h2>
+        <form id="ciba-form">
+          <label>
+            Client ID
+            <input type="text" id="clientId" value="demo-client" required />
+          </label>
+          <label>
+            Scope
+            <input type="text" id="scope" value="aisp" required />
+          </label>
+          <label>
+            Login Hint (National ID)
+            <input type="text" id="loginHint" value="1234567890" required />
+          </label>
+          <button type="submit">Create Auth Request</button>
+        </form>
+        <pre id="ciba-result"></pre>
+      </section>
+
+      <section>
+        <h2>2. Approve via Mocked Nafath</h2>
+        <button id="approve-btn" disabled>Approve Request</button>
+        <button id="deny-btn" disabled class="secondary">Deny Request</button>
+        <pre id="nafath-result"></pre>
+      </section>
+
+      <section>
+        <h2>3. Poll for Tokens</h2>
+        <button id="poll-btn" disabled>Poll Token Endpoint</button>
+        <pre id="token-result"></pre>
+      </section>
+
+      <section>
+        <h2>4. Create Consent</h2>
+        <form id="consent-form">
+          <label>
+            Subject
+            <input type="text" id="consent-subject" value="1234567890" required />
+          </label>
+          <label>
+            Purpose
+            <input type="text" id="consent-purpose" value="account_information" required />
+          </label>
+          <label>
+            Scopes (comma separated)
+            <input type="text" id="consent-scopes" value="accounts.read,transactions.read" required />
+          </label>
+          <button type="submit">Create Consent</button>
+        </form>
+        <pre id="consent-result"></pre>
+      </section>
+    </main>
+    <script src="/js/app.js"></script>
+  </body>
+</html>

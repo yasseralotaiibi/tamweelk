@@ -1,0 +1,273 @@
+openapi: 3.0.3
+info:
+  title: Riyada OpenBanking API
+  version: 0.1.0
+  description: |
+    MVP scaffold for Saudi Open Banking (SAMA) compliant platform implementing mocked CIBA flows,
+    consent management and national connector stubs. Aligns with FAPI Advanced + CIBA profiles.
+servers:
+  - url: http://localhost:3000
+    description: Local development
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      summary: Health probe
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+  /ciba/auth/request:
+    post:
+      summary: Initiate a CIBA backchannel authentication request
+      tags: [CIBA]
+      security:
+        - fapiNonce: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [client_id, login_hint, scope]
+              properties:
+                client_id:
+                  type: string
+                login_hint:
+                  type: string
+                  description: Pseudo identifier of the PSU (e.g., national ID)
+                scope:
+                  type: string
+                  description: Space-separated OAuth scopes
+      responses:
+        '202':
+          description: CIBA request accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  auth_req_id:
+                    type: string
+                  expires_in:
+                    type: integer
+                  interval:
+                    type: integer
+  /ciba/auth/token:
+    post:
+      summary: Poll for CIBA tokens once the PSU approves the request
+      tags: [CIBA]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [auth_req_id]
+              properties:
+                auth_req_id:
+                  type: string
+      responses:
+        '200':
+          description: Tokens issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  id_token:
+                    type: string
+                  expires_in:
+                    type: integer
+                  scope:
+                    type: string
+                  token_type:
+                    type: string
+                    example: Bearer
+        '400':
+          description: Authorization pending / denied / expired
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+  /mock/nafath/approve:
+    post:
+      summary: Mock endpoint to approve a Nafath push request
+      tags: [Mocks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [auth_req_id]
+              properties:
+                auth_req_id:
+                  type: string
+                subject:
+                  type: string
+                  description: Optional PSU subject identifier
+      responses:
+        '200':
+          description: Approval recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  auth_req_id:
+                    type: string
+  /mock/nafath/deny:
+    post:
+      summary: Mock endpoint to deny a Nafath push request
+      tags: [Mocks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [auth_req_id]
+              properties:
+                auth_req_id:
+                  type: string
+      responses:
+        '200':
+          description: Denial recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  auth_req_id:
+                    type: string
+  /consents:
+    post:
+      summary: Create a customer consent
+      tags: [Consents]
+      security:
+        - bearerAuth: []
+        - fapiNonce: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [customerId, scopes]
+              properties:
+                customerId:
+                  type: string
+                scopes:
+                  type: array
+                  items:
+                    type: string
+                expiresAt:
+                  type: string
+                  format: date-time
+                provider:
+                  type: string
+      responses:
+        '201':
+          description: Consent created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Consent'
+    get:
+      summary: List consents
+      tags: [Consents]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: customerId
+          schema:
+            type: string
+          required: false
+      responses:
+        '200':
+          description: Consent collection
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Consent'
+  /consents/{id}:
+    delete:
+      summary: Revoke an existing consent
+      tags: [Consents]
+      security:
+        - bearerAuth: []
+        - fapiNonce: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Consent revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Consent'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    fapiNonce:
+      type: apiKey
+      in: header
+      name: x-nonce
+      description: FAPI Advanced nonce protection header placeholder
+  schemas:
+    Consent:
+      type: object
+      properties:
+        id:
+          type: string
+        customerId:
+          type: string
+        provider:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [ACTIVE, REVOKED, EXPIRED]
+        expiresAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time

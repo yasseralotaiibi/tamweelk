@@ -1,0 +1,251 @@
+openapi: 3.0.3
+info:
+  title: Riyada Open Banking MVP API
+  version: 0.1.0
+  description: |
+    Mocked Saudi Open Banking MVP APIs implementing CIBA authorization and consent management flows.
+    This specification follows FAPI Advanced security guidance with placeholders for mTLS and JWS signing.
+servers:
+  - url: http://localhost:3000/api
+    description: Local development server
+paths:
+  /ciba/auth/request:
+    post:
+      summary: Create a CIBA authentication request
+      description: Initiates a mocked CIBA flow aligned with SAMA Open Banking requirements.
+      tags:
+        - CIBA
+      security:
+        - bearerAuth: []
+        - nonceHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - client_id
+                - scope
+                - login_hint
+              properties:
+                client_id:
+                  type: string
+                scope:
+                  type: string
+                login_hint:
+                  type: string
+      responses:
+        '200':
+          description: Authentication request created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  auth_req_id:
+                    type: string
+                  expires_in:
+                    type: integer
+                  interval:
+                    type: integer
+        '400':
+          description: Missing required fields
+  /ciba/auth/token:
+    post:
+      summary: Poll for CIBA token
+      description: Polls the mocked authorization server for token issuance status.
+      tags:
+        - CIBA
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - auth_req_id
+              properties:
+                auth_req_id:
+                  type: string
+      responses:
+        '200':
+          description: Tokens issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  id_token:
+                    type: string
+                  token_type:
+                    type: string
+                  expires_in:
+                    type: integer
+        '202':
+          description: Authorization pending
+        '400':
+          description: Request denied or invalid input
+  /mock/nafath/approve:
+    post:
+      summary: Approve Nafath authentication request
+      tags:
+        - Mock Integrations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - auth_req_id
+              properties:
+                auth_req_id:
+                  type: string
+      responses:
+        '200':
+          description: Status updated
+  /mock/nafath/deny:
+    post:
+      summary: Deny Nafath authentication request
+      tags:
+        - Mock Integrations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - auth_req_id
+              properties:
+                auth_req_id:
+                  type: string
+      responses:
+        '200':
+          description: Status updated
+  /consents:
+    post:
+      summary: Create consent
+      tags:
+        - Consents
+      security:
+        - bearerAuth: []
+        - nonceHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsentRequest'
+      responses:
+        '201':
+          description: Consent created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  consent:
+                    $ref: '#/components/schemas/Consent'
+                  receipt_id:
+                    type: string
+    get:
+      summary: List consents
+      tags:
+        - Consents
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of consents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  consents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Consent'
+  /consents/{id}:
+    delete:
+      summary: Revoke consent
+      tags:
+        - Consents
+      security:
+        - bearerAuth: []
+        - nonceHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Consent revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  consent:
+                    $ref: '#/components/schemas/Consent'
+        '404':
+          description: Consent not found
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    nonceHeader:
+      type: apiKey
+      in: header
+      name: x-nonce
+  schemas:
+    ConsentRequest:
+      type: object
+      required:
+        - subject
+        - purpose
+        - scopes
+      properties:
+        subject:
+          type: string
+        purpose:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        expires_at:
+          type: string
+          format: date-time
+    Consent:
+      type: object
+      properties:
+        id:
+          type: string
+        subject:
+          type: string
+        purpose:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
