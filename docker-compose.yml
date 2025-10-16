@@ -1,4 +1,6 @@
 version: '3.9'
+# Hardened variant generated to align with ISO 27001 / SOC 2 / SAMA CSF.
+# Original compose preserved at: /mnt/data/docker-compose.yml
 services:
   api:
     build:
@@ -6,34 +8,82 @@ services:
       target: development
     command: npm run dev
     ports:
-      - '3000:3000'
+      - "3000:3000"
     environment:
       - NODE_ENV=development
       - PORT=3000
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/openbanking
-      - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=demo-secret
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/openbanking}
+      - REDIS_URL=${REDIS_URL:-redis://default:${REDIS_PASSWORD}@redis:6379}
+      - JWT_SECRET=${JWT_SECRET}
     volumes:
-      - .:/app
+      - ./:/app:ro
+      - api-tmp:/tmp
+    read_only: true
+    user: "10001:10001"
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /run
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   postgres:
-    image: postgres:15-alpine
+    image: postgres:16-alpine
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
       POSTGRES_DB: openbanking
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - '5432:5432'
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
+
   redis:
     image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
     ports:
-      - '6379:6379'
+      - "6379:6379"
     volumes:
       - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
+
 volumes:
-  pgdata:
-  redisdata:
+  pgdata: {}
+  redisdata: {}
+
+# Required env:
+#   POSTGRES_PASSWORD=<strong password>
+#   REDIS_PASSWORD=<strong password>
+#   JWT_SECRET=<strong secret>
