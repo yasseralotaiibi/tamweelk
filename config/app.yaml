@@ -1,0 +1,24 @@
+service:
+  name: riyada-open-finance
+  version: 1.1.0
+  region: me-central-1
+  timezone: Asia/Riyadh
+  criticality: high
+  sla:
+    availability: 99.99
+    latency_p95_ms: 250
+security:
+  key_rotation_days: 90
+  token_ttl_minutes: 15
+  refresh_ttl_minutes: 60
+  jwks_endpoint: https://auth.riyada.sa/.well-known/jwks.json
+observability:
+  tracing_sampler: 0.1
+  audit_log_worm_years: 7
+  default_log_level: info
+compliance:
+  frameworks:
+    - ISO27001
+    - SOC2
+    - SAMA_CSF
+    - PDPL

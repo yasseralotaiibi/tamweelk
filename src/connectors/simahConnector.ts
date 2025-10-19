@@ -10,6 +10,9 @@ type CreditReportResponse = {
   score: number;
   grade: 'A' | 'B' | 'C' | 'D';
   issuedAt: string;
+  delinquencyCount: number;
+  exposureSar: number;
+  arrearsAmount: number;
 };
 
 export const fetchCreditReport = async (
@@ -24,5 +27,8 @@ export const fetchCreditReport = async (
     score: 720,
     grade: 'A',
     issuedAt: new Date().toISOString(),
+    delinquencyCount: 0,
+    exposureSar: 15000,
+    arrearsAmount: 0,
   };
 };

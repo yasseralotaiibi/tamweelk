@@ -22,30 +22,32 @@ jest.mock('../../src/config/redis', () => {
   };
 });
 
+const consentRecord = {
+  id: 'consent-1',
+  organizationId: 'org-1',
+  userId: 'user-1',
+  provider: 'demo-bank',
+  scopes: ['accounts.read'],
+  status: 'ACTIVE',
+  expiresAt: new Date().toISOString(),
+  revokedAt: null,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
 jest.mock('../../src/config/prisma', () => ({
   __esModule: true,
   default: {
     consent: {
-      create: jest.fn(async ({ data }) => ({
-        id: 'consent-1',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        revokedAt: null,
-        status: 'ACTIVE',
-        ...data,
-      })),
-      findMany: jest.fn(async () => []),
-      update: jest.fn(async ({ where }) => ({
-        id: where.id,
-        customerId: 'demo',
-        provider: 'demo-bank',
-        scopes: ['accounts.read'],
-        status: 'REVOKED',
-        expiresAt: new Date().toISOString(),
-        revokedAt: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })),
+      create: jest.fn(async () => consentRecord),
+      findMany: jest.fn(async () => [consentRecord]),
+      update: jest.fn(async () => ({ ...consentRecord, status: 'REVOKED', revokedAt: new Date().toISOString() })),
+    },
+    resource: {
+      create: jest.fn(async () => ({ id: 'resource-1' })),
+    },
+    relation: {
+      createMany: jest.fn(async () => ({ count: 1 })),
     },
   },
 }));
@@ -57,26 +59,52 @@ jest.mock('../../src/utils/pdpl', () => ({
   appendAuditTrail: jest.fn(),
 }));
 
+jest.mock('../../src/middleware/dpop', () => ({
+  dpopValidationMiddleware: jest.fn((_req: any, _res: any, next: () => void) => {
+    _req.dpop = { thumbprint: 'demo-thumb', jti: 'demo-jti' };
+    next();
+  }),
+}));
+
+jest.mock('../../src/middleware/orgResolver', () => ({
+  orgResolverMiddleware: jest.fn((req: any, _res: any, next: () => void) => {
+    req.organization = { id: 'org-1', slug: 'riyada', riskThreshold: 70, defaultAcr: 'loa3' };
+    req.subjectRoles = ['tpp_admin'];
+    next();
+  }),
+}));
+
+jest.mock('../../src/services/fgaService', () => ({
+  checkAccess: jest.fn(async () => true),
+}));
+
 const app = require('../../src/app').default;
 
-const token = jwt.sign({ sub: 'demo-user' }, 'demo-secret');
+const token = jwt.sign({ sub: 'user-1', org_id: 'org-1', cnf: { jkt: 'demo-thumb' } }, 'demo-secret');
 
 describe('Consent endpoints', () => {
   it('creates a consent record', async () => {
     const response = await request(app)
-      .post('/consents')
+      .post('/v1/consents')
       .set('Authorization', `Bearer ${token}`)
       .set('x-nonce', `${Date.now()}-consent`)
-      .send({ customerId: 'demo-user', scopes: ['accounts.read'] });
+      .set('dpop', 'mocked')
+      .set('x-org-id', 'org-1')
+      .send({ userId: 'user-1', scopes: ['accounts.read'] });
 
     expect(response.status).toBe(201);
     expect(response.body).toHaveProperty('id', 'consent-1');
   });
 
-  it('lists consents', async () => {
-    const response = await request(app).get('/consents').set('Authorization', `Bearer ${token}`);
+  it('lists consents filtered by FGA', async () => {
+    const response = await request(app)
+      .get('/v1/consents')
+      .set('Authorization', `Bearer ${token}`)
+      .set('dpop', 'mocked')
+      .set('x-org-id', 'org-1');
 
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body)).toBe(true);
+    expect(response.body[0].id).toBe('consent-1');
   });
 });
