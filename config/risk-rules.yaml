@@ -1,0 +1,16 @@
+version: 2024-06-01
+weights:
+  geo_mismatch: 25
+  pep_hit: 40
+  sanctions_hit: 50
+  simah_delinquency: 30
+  high_exposure: 20
+  low_credit_score: 35
+  device_untrusted: 15
+  velocity_alert: 25
+controls:
+  base_score: 10
+  nafath_recent_success: -5
+  consent_age_days_reduction:
+    threshold: 30
+    reduction: 10

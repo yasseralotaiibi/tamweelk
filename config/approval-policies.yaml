@@ -1,0 +1,31 @@
+version: 2024-06-01
+thresholds:
+  max_risk_score: 70
+  min_credit_score: 650
+  max_exposure_sar: 250000
+step_up:
+  trigger_risk_score: 60
+  trigger_amount_sar: 5000
+  methods:
+    - nafath
+    - absher
+rules:
+  - id: rule_auto_approve_low
+    description: Approve low risk customers with strong credit
+    conditions:
+      risk_score_lte: 30
+      credit_score_gte: 720
+    action: APPROVE
+  - id: rule_review_medium
+    description: Route medium risk profiles to manual review
+    conditions:
+      risk_score_between:
+        min: 31
+        max: 70
+      credit_score_gte: 600
+    action: MANUAL_REVIEW
+  - id: rule_reject_high
+    description: Reject customers exceeding risk tolerance
+    conditions:
+      risk_score_gte: 71
+    action: REJECT

@@ -13,25 +13,346 @@ enum ConsentStatus {
   EXPIRED
 }
 
+enum KycStatus {
+  SUBMITTED
+  PENDING
+  VERIFIED
+  FAILED
+}
+
+enum RiskLevel {
+  LOW
+  MODERATE
+  HIGH
+  CRITICAL
+}
+
+enum DecisionStatus {
+  APPROVED
+  MANUAL_REVIEW
+  REJECTED
+}
+
+enum TenantMode {
+  SINGLE
+  MULTI
+}
+
+enum PolicyEffect {
+  ALLOW
+  DENY
+}
+
+enum PaymentStatus {
+  INITIATED
+  REQUIRES_STEP_UP
+  AUTHORIZED
+  SETTLED
+  FAILED
+}
+
+enum DataSubjectRequestType {
+  ACCESS
+  DELETE
+  EXPORT
+  CONSENT_LIST
+}
+
+enum DataSubjectRequestStatus {
+  RECEIVED
+  IN_PROGRESS
+  COMPLETED
+  REJECTED
+}
+
+model Organization {
+  id                  String                 @id @default(cuid())
+  name                String
+  slug                String                 @unique
+  region              String
+  timezone            String
+  classification      String                 @default("regulated")
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  consents            Consent[]
+  userMemberships     UserOrg[]
+  serviceAccounts     ServiceAccount[]
+  resources           Resource[]
+  relations           Relation[]
+  policies            Policy[]
+  tenantSettings      TenantSettings?
+  kycRecords          KycRecord[]
+  riskAssessments     RiskAssessment[]
+  creditChecks        CreditCheck[]
+  decisions           Decision[]
+  auditLogs           AuditLog[]
+  dataSubjectRequests DataSubjectRequest[]
+  paymentIntents      PaymentIntent[]
+}
+
+model TenantSettings {
+  id             String     @id @default(cuid())
+  organizationId String     @unique
+  tenantMode     TenantMode @default(MULTI)
+  dataResidency  String     @default("KSA")
+  defaultAcr     String     @default("loa2")
+  riskThreshold  Int        @default(70)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id          String                 @id @default(cuid())
+  externalId  String?                @unique
+  nationalId  String?
+  email       String?
+  phone       String?
+  riskTier    RiskLevel?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  kycRecords      KycRecord[]
+  riskAssessments RiskAssessment[]
+  creditChecks    CreditCheck[]
+  decisions   Decision[]
+  memberships UserOrg[]
+  consents    Consent[]
+  dsrRequests DataSubjectRequest[]
+
+  @@index([nationalId])
+}
+
+model UserOrg {
+  id             String       @id @default(cuid())
+  userId         String
+  organizationId String
+  role           String
+  attributes     Json?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId, role])
+  @@index([organizationId, role])
+}
+
+model ServiceAccount {
+  id             String       @id @default(cuid())
+  organizationId String
+  clientId       String       @unique
+  clientName     String
+  scopes         String[]
+  jktThumbprint  String
+  status         String       @default("active")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model Resource {
+  id             String       @id @default(cuid())
+  organizationId String
+  type           String
+  referenceId    String
+  attributes     Json
+  classification String       @default("confidential")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  relations    Relation[]
+
+  @@unique([organizationId, type, referenceId])
+}
+
+model Relation {
+  id             String       @id @default(cuid())
+  organizationId String
+  subjectType    String
+  subjectId      String
+  resourceId     String
+  relation       String
+  createdAt      DateTime     @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  resource     Resource     @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, subjectType, subjectId, resourceId, relation])
+  @@index([resourceId])
+}
+
+model Policy {
+  id             String       @id @default(cuid())
+  organizationId String
+  action         String
+  effect         PolicyEffect
+  resourceType   String
+  subjectType    String
+  priority       Int          @default(100)
+  condition      Json?
+  attributes     Json?
+  description    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, action, resourceType])
+}
+
 model Consent {
-  id         String         @id @default(cuid())
-  customerId String
-  provider   String
-  scopes     String[]
-  status     ConsentStatus  @default(ACTIVE)
-  expiresAt  DateTime
-  revokedAt  DateTime?
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-  auditLogs  AuditLog[]
+  id             String         @id @default(cuid())
+  organizationId String
+  userId         String
+  provider       String
+  scopes         String[]
+  status         ConsentStatus  @default(ACTIVE)
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  auditLogs    AuditLog[]
+  decisions    Decision[]
+  paymentIntents PaymentIntent[]
+
+  @@index([organizationId, userId])
+  @@index([userId, status])
 }
 
 model AuditLog {
-  id        String   @id @default(cuid())
-  consentId String
-  event     String
-  metadata  Json
-  createdAt DateTime @default(now())
+  id             String       @id @default(cuid())
+  organizationId String
+  consentId      String?
+  actorId        String?
+  event          String
+  metadata       Json
+  createdAt      DateTime     @default(now())
 
-  consent   Consent  @relation(fields: [consentId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  consent      Consent?     @relation(fields: [consentId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, event])
+}
+
+model KycRecord {
+  id                String      @id @default(cuid())
+  userId            String
+  organizationId    String
+  providerReference String
+  status            KycStatus   @default(SUBMITTED)
+  pepFlag           Boolean     @default(false)
+  sanctionsFlag     Boolean     @default(false)
+  documentsOk       Boolean     @default(true)
+  riskScore         Int         @default(0)
+  result            Json?
+  expiresAt         DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@unique([organizationId, providerReference])
+}
+
+model RiskAssessment {
+  id             String      @id @default(cuid())
+  userId         String
+  organizationId String
+  riskLevel      RiskLevel
+  riskScore      Int
+  ruleHits       String[]
+  context        Json
+  createdAt      DateTime    @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  decisions    Decision[]
+
+  @@index([organizationId, riskLevel])
+}
+
+model CreditCheck {
+  id               String      @id @default(cuid())
+  userId           String
+  organizationId   String
+  simahScore       Int
+  delinquencyCount Int
+  exposureSar      Decimal     @db.Decimal(18, 2)
+  report           Json?
+  createdAt        DateTime    @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  decisions    Decision[]
+
+  @@index([organizationId, simahScore])
+}
+
+model Decision {
+  id                String          @id @default(cuid())
+  organizationId    String
+  userId            String
+  consentId         String?
+  riskAssessmentId  String?
+  creditCheckId     String?
+  status            DecisionStatus
+  riskScore         Int
+  creditScore       Int
+  reason            String?
+  metadata          Json?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  consent        Consent?      @relation(fields: [consentId], references: [id], onDelete: Cascade)
+  riskAssessment RiskAssessment? @relation(fields: [riskAssessmentId], references: [id], onDelete: SetNull)
+  creditCheck    CreditCheck?  @relation(fields: [creditCheckId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+}
+
+model PaymentIntent {
+  id              String      @id @default(cuid())
+  organizationId  String
+  consentId       String
+  amount          Decimal     @db.Decimal(18, 2)
+  currency        String
+  status          PaymentStatus @default(INITIATED)
+  riskLevel       RiskLevel
+  dpopThumbprint  String
+  stepUpRequired  Boolean     @default(false)
+  metadata        Json?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  consent      Consent      @relation(fields: [consentId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+}
+
+model DataSubjectRequest {
+  id             String                    @id @default(cuid())
+  organizationId String
+  userId         String
+  requestType    DataSubjectRequestType
+  status         DataSubjectRequestStatus @default(RECEIVED)
+  requestedAt    DateTime                 @default(now())
+  completedAt    DateTime?
+  payload        Json?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, requestType])
 }

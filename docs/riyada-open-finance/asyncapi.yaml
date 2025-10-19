@@ -1,0 +1,168 @@
+asyncapi: 3.0.0
+info:
+  title: Riyada Event Stream
+  version: 0.1.0
+  description: Event contracts for consent, risk, credit, and decision notifications.
+channels:
+  consent.events:
+    address: consent.events
+    messages:
+      ConsentEvent:
+        $ref: '#/components/messages/ConsentEvent'
+  decision.events:
+    address: decision.events
+    messages:
+      DecisionEvent:
+        $ref: '#/components/messages/DecisionEvent'
+  risk.events:
+    address: risk.events
+    messages:
+      RiskEvent:
+        $ref: '#/components/messages/RiskEvent'
+  security.alerts:
+    address: security.alerts
+    messages:
+      SecurityAlert:
+        $ref: '#/components/messages/SecurityAlert'
+operations:
+  consentPublished:
+    action: receive
+    channel:
+      $ref: '#/channels/consent.events'
+  decisionPublished:
+    action: receive
+    channel:
+      $ref: '#/channels/decision.events'
+components:
+  messages:
+    ConsentEvent:
+      name: ConsentEvent
+      title: Consent state changed
+      summary: Raised when a consent is created, updated, or revoked.
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ConsentEvent'
+    DecisionEvent:
+      name: DecisionEvent
+      summary: Auto approval decision emitted for auditing and async processing.
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/DecisionEvent'
+    RiskEvent:
+      name: RiskEvent
+      summary: Risk score computed for a session.
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/RiskEvent'
+    SecurityAlert:
+      name: SecurityAlert
+      summary: High severity security alert for SOC integration.
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/SecurityAlert'
+  schemas:
+    ConsentEvent:
+      type: object
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          enum: [consent.created, consent.revoked, consent.expired]
+        consentId:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        scopes:
+          type: array
+          items:
+            type: string
+        lawfulBasis:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        receiptUrl:
+          type: string
+          format: uri
+        traceId:
+          type: string
+      required: [eventId, eventType, consentId, organizationId, userId, scopes, lawfulBasis, timestamp, traceId]
+    DecisionEvent:
+      type: object
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        decisionId:
+          type: string
+          format: uuid
+        decision:
+          type: string
+          enum: [approved, manual_review, rejected]
+        riskScore:
+          type: number
+        creditScore:
+          type: number
+        auditId:
+          type: string
+        policyVersion:
+          type: string
+        issuedAt:
+          type: string
+          format: date-time
+        traceId:
+          type: string
+      required: [eventId, decisionId, decision, riskScore, creditScore, auditId, policyVersion, issuedAt, traceId]
+    RiskEvent:
+      type: object
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        riskScore:
+          type: number
+        level:
+          type: string
+        sessionId:
+          type: string
+        userId:
+          type: string
+        organizationId:
+          type: string
+        reasons:
+          type: array
+          items:
+            type: string
+        traceId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required: [eventId, riskScore, level, sessionId, userId, organizationId, traceId, timestamp]
+    SecurityAlert:
+      type: object
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        severity:
+          type: string
+          enum: [critical, high, medium]
+        category:
+          type: string
+          enum: [fraud, ddos, intrusion, compliance]
+        description:
+          type: string
+        traceId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [eventId, severity, category, description, traceId, createdAt]

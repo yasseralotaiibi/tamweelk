@@ -1,0 +1,632 @@
+openapi: 3.1.0
+info:
+  title: Riyada Open Finance API
+  version: 0.1.0
+  description: >-
+    OAuth2 protected APIs for KYC, risk scoring, credit checks, consent management,
+    and automated approval decisions compliant with SAMA open banking.
+servers:
+  - url: https://api.riyadaconnect.sa/v1
+    description: Production (KSA)
+  - url: https://sandbox.api.riyadaconnect.sa/v1
+    description: Sandbox
+security:
+  - oauth2: [kyc.read, kyc.write, credit.read, credit.write, consent.read, decision.write]
+  - dpop: []
+  - mTLS: []
+tags:
+  - name: Health
+  - name: KYC
+  - name: Risk
+  - name: Credit
+  - name: Approval
+  - name: Consent
+  - name: Privacy
+paths:
+  /health/live:
+    get:
+      tags: [Health]
+      summary: Liveness probe
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/$defs/HealthResponse'
+  /v1/kyc/submit:
+    post:
+      tags: [KYC]
+      summary: Submit KYC data for verification
+      operationId: submitKyc
+      security:
+        - oauth2: [kyc.write]
+        - dpop: []
+      parameters:
+        - $ref: '#/$defs/IdempotencyKeyHeader'
+        - $ref: '#/$defs/OrgHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/$defs/KycSubmission'
+      responses:
+        '202':
+          description: Accepted for processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/$defs/KycSubmissionResponse'
+        '400': { $ref: '#/$defs/BadRequest' }
+        '401': { $ref: '#/$defs/Unauthorized' }
+        '409': { $ref: '#/$defs/Conflict' }
+        '429': { $ref: '#/$defs/RateLimited' }
+  /v1/kyc/refresh:
+    post:
+      tags: [KYC]
+      summary: Refresh KYC status by provider reference
+      operationId: refreshKyc
+      security:
+        - oauth2: [kyc.write]
+        - dpop: []
+      parameters:
+        - $ref: '#/$defs/OrgHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reference]
+              properties:
+                reference:
+                  type: string
+      responses:
+        '200':
+          description: Updated KYC status
+          content:
+            application/json:
+              schema:
+                $ref: '#/$defs/KycRecord'
+        '404': { $ref: '#/$defs/NotFound' }
+        '401': { $ref: '#/$defs/Unauthorized' }
+  /v1/kyc/webhook:
+    post:
+      tags: [KYC]
+      summary: Provider webhook to push KYC outcomes
+      operationId: kycWebhook
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organizationSlug, reference, status]
+              properties:
+                organizationSlug:
+                  type: string
+                reference:
+                  type: string
+                status:
+                  type: string
+                  enum: [VERIFIED, FAILED]
+                pepFlag:
+                  type: boolean
+                sanctionsFlag:
+                  type: boolean
+      responses:
+        '200': { $ref: '#/$defs/Success' }
+        '404': { $ref: '#/$defs/NotFound' }
+  /v1/risk/score:
+    post:
+      tags: [Risk]
+      summary: Calculate contextual risk score
+      operationId: scoreRisk
+      security:
+        - oauth2: [risk.write]
+        - dpop: []
+      parameters:
+        - $ref: '#/$defs/IdempotencyKeyHeader'
+        - $ref: '#/$defs/OrgHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/$defs/RiskRequest'
+      responses:
+        '200':
+          description: Risk score generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/$defs/RiskResponse'
+        '422': { $ref: '#/$defs/Unprocessable' }
+        '429': { $ref: '#/$defs/RateLimited' }
+  /v1/credit/check:
+    post:
+      tags: [Credit]
+      summary: Perform SIMAH credit check
+      operationId: checkCredit
+      security:
+        - oauth2: [credit.write]
+        - dpop: []
+      parameters:
+        - $ref: '#/$defs/IdempotencyKeyHeader'
+        - $ref: '#/$defs/OrgHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/$defs/CreditRequest'
+      responses:
+        '200':
+          description: Credit report retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/$defs/CreditResponse'
+        '404': { $ref: '#/$defs/NotFound' }
+        '409': { $ref: '#/$defs/Conflict' }
+  /v1/approval/decide:
+    post:
+      tags: [Approval]
+      summary: Decide if onboarding can be auto-approved
+      operationId: decideApproval
+      security:
+        - oauth2: [decision.write]
+        - dpop: []
+      parameters:
+        - $ref: '#/$defs/IdempotencyKeyHeader'
+        - $ref: '#/$defs/OrgHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/$defs/DecisionRequest'
+      responses:
+        '200':
+          description: Decision completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/$defs/DecisionResponse'
+        '202':
+          description: Manual review required
+          content:
+            application/json:
+              schema:
+                $ref: '#/$defs/ManualReviewResponse'
+        '409': { $ref: '#/$defs/Conflict' }
+        '429': { $ref: '#/$defs/RateLimited' }
+  /v1/payments/{consentId}/initiate:
+    post:
+      tags: [Approval]
+      summary: Initiate payment using an authorised consent
+      operationId: initiatePayment
+      security:
+        - oauth2: [payments.initiate]
+        - dpop: []
+      parameters:
+        - name: consentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/$defs/OrgHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, amount, currency]
+              properties:
+                userId:
+                  type: string
+                amount:
+                  type: number
+                  minimum: 0
+                currency:
+                  type: string
+                  minLength: 3
+      responses:
+        '201':
+          description: Payment intent created
+          content:
+            application/json:
+              schema:
+                $ref: '#/$defs/PaymentIntent'
+        '403': { $ref: '#/$defs/Forbidden' }
+        '404': { $ref: '#/$defs/NotFound' }
+        '401': { $ref: '#/$defs/Unauthorized' }
+  /me/data/export:
+    get:
+      tags: [Privacy]
+      summary: Export personal data bundle
+      operationId: exportData
+      security:
+        - oauth2: [me.read]
+        - dpop: []
+      responses:
+        '200':
+          description: Export prepared
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+              examples:
+                sample:
+                  summary: Example export
+                  externalValue: https://sandbox.api.riyadaconnect.sa/examples/export.zip
+        '202': { $ref: '#/$defs/Accepted' }
+  /me/data:
+    delete:
+      tags: [Privacy]
+      summary: Request personal data deletion
+      operationId: deleteData
+      security:
+        - oauth2: [me.delete]
+        - dpop: []
+      parameters:
+        - $ref: '#/$defs/OrgHeader'
+      responses:
+        '202': { $ref: '#/$defs/Accepted' }
+        '401': { $ref: '#/$defs/Unauthorized' }
+  /me/consents:
+    get:
+      tags: [Consent]
+      summary: List consents for authenticated user
+      operationId: listConsents
+      security:
+        - oauth2: [consent.read]
+        - dpop: []
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of consents
+          content:
+            application/json:
+              schema:
+                $ref: '#/$defs/ConsentList'
+
+$defs:
+  oauth2:
+    type: object
+  dpop:
+    type: object
+  mTLS:
+    type: object
+  HealthResponse:
+    type: object
+    properties:
+      status:
+        type: string
+        enum: [ok]
+      timestamp:
+        type: string
+        format: date-time
+    required: [status, timestamp]
+  IdempotencyKeyHeader:
+    name: Idempotency-Key
+    in: header
+    required: true
+    description: Unique key per POST request valid for 24h.
+    schema:
+      type: string
+      minLength: 16
+      maxLength: 128
+  OrgHeader:
+    name: X-Org-Id
+    in: header
+    required: true
+    schema:
+      type: string
+      format: uuid
+  BadRequest:
+    description: Invalid request payload
+    content:
+      application/problem+json:
+        schema:
+          $ref: '#/$defs/Problem'
+  Unauthorized:
+    description: Authentication failure
+    content:
+      application/problem+json:
+        schema:
+          $ref: '#/$defs/Problem'
+  Conflict:
+    description: Resource conflict or duplicate idempotency key
+    content:
+      application/problem+json:
+        schema:
+          $ref: '#/$defs/Problem'
+  RateLimited:
+    description: Rate limit exceeded
+    headers:
+      Retry-After:
+        schema:
+          type: integer
+          minimum: 1
+    content:
+      application/problem+json:
+        schema:
+          $ref: '#/$defs/Problem'
+  NotFound:
+    description: Resource not found
+    content:
+      application/problem+json:
+        schema:
+          $ref: '#/$defs/Problem'
+  Unprocessable:
+    description: Validation succeeded but domain constraints failed
+    content:
+      application/problem+json:
+        schema:
+          $ref: '#/$defs/Problem'
+  Accepted:
+    description: Request accepted for async processing
+    content:
+      application/problem+json:
+        schema:
+          $ref: '#/$defs/Problem'
+  Problem:
+    type: object
+    properties:
+      type:
+        type: string
+        format: uri
+      title:
+        type: string
+      status:
+        type: integer
+      detail:
+        type: string
+      instance:
+        type: string
+      trace_id:
+        type: string
+      code:
+        type: string
+      correlation_id:
+        type: string
+    required: [type, title, status, detail, trace_id, code]
+  KycSubmission:
+    type: object
+    properties:
+      userId:
+        type: string
+        format: uuid
+      nationalId:
+        type: string
+      documentNumber:
+        type: string
+      documentType:
+        type: string
+        enum: [national_id, iqama, passport]
+      firstName:
+        type: string
+      lastName:
+        type: string
+    required: [userId, nationalId, documentNumber, documentType, firstName, lastName]
+  KycSubmissionResponse:
+    type: object
+    properties:
+      trackingId:
+        type: string
+      status:
+        type: string
+        enum: [pending, verified, rejected]
+    required: [trackingId, status]
+  KycRecord:
+    type: object
+    properties:
+      userId:
+        type: string
+        format: uuid
+      status:
+        type: string
+        enum: [pending, verified, rejected]
+      pepFlag:
+        type: boolean
+      sanctionsFlag:
+        type: boolean
+      updatedAt:
+        type: string
+        format: date-time
+    required: [userId, status, updatedAt]
+  RiskRequest:
+    type: object
+    properties:
+      userId:
+        type: string
+        format: uuid
+      sessionId:
+        type: string
+      device:
+        type: object
+        properties:
+          ip:
+            type: string
+            format: ipv4
+          userAgent:
+            type: string
+          location:
+            type: string
+      events:
+        type: array
+        items:
+          type: object
+          properties:
+            type:
+              type: string
+            timestamp:
+              type: string
+              format: date-time
+            metadata:
+              type: object
+      context:
+        type: object
+    required: [userId, sessionId]
+  RiskResponse:
+    type: object
+    properties:
+      riskScore:
+        type: number
+        minimum: 0
+        maximum: 100
+      level:
+        type: string
+        enum: [low, medium, high]
+      reasons:
+        type: array
+        items:
+          type: string
+      traceId:
+        type: string
+    required: [riskScore, level, traceId]
+  CreditRequest:
+    type: object
+    properties:
+      userId:
+        type: string
+        format: uuid
+      purpose:
+        type: string
+      nationalId:
+        type: string
+    required: [userId, nationalId, purpose]
+  CreditResponse:
+    type: object
+    properties:
+      simahScore:
+        type: integer
+        minimum: 300
+        maximum: 900
+      delinquencyCount:
+        type: integer
+        minimum: 0
+      exposureSar:
+        type: number
+        minimum: 0
+      lastUpdated:
+        type: string
+        format: date-time
+      arrearsAmount:
+        type: number
+        minimum: 0
+    required: [simahScore, delinquencyCount, exposureSar, lastUpdated, arrearsAmount]
+  DecisionRequest:
+    type: object
+    properties:
+      userId:
+        type: string
+        format: uuid
+      consentId:
+        type: string
+        format: uuid
+      riskAssessmentId:
+        type: string
+      creditCheckId:
+        type: string
+      amountSar:
+        type: number
+        minimum: 0
+    required: [userId]
+  DecisionResponse:
+    type: object
+    properties:
+      decision:
+        type: string
+        enum: [approved]
+      policyVersion:
+        type: string
+      expiresAt:
+        type: string
+        format: date-time
+      auditId:
+        type: string
+    required: [decision, policyVersion, expiresAt, auditId]
+  ManualReviewResponse:
+    type: object
+    properties:
+      decision:
+        type: string
+        enum: [manual_review, rejected]
+      reasons:
+        type: array
+        items:
+          type: string
+      nextSteps:
+        type: string
+      auditId:
+        type: string
+    required: [decision, reasons, auditId]
+  ConsentList:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/$defs/Consent'
+      nextCursor:
+        type: string
+        nullable: true
+    required: [items]
+  Consent:
+    type: object
+    properties:
+      id:
+        type: string
+        format: uuid
+      scopes:
+        type: array
+        items:
+          type: string
+      status:
+        type: string
+        enum: [active, revoked, expired]
+      lawfulBasis:
+        type: string
+        enum: [consent, legal_obligation]
+      expiresAt:
+        type: string
+        format: date-time
+      receiptUrl:
+        type: string
+        format: uri
+    required: [id, scopes, status, lawfulBasis, expiresAt]
+  PaymentIntent:
+    type: object
+    properties:
+      id:
+        type: string
+      consentId:
+        type: string
+      status:
+        type: string
+        enum: [INITIATED, REQUIRES_STEP_UP, AUTHORIZED, SETTLED, FAILED]
+      riskLevel:
+        type: string
+        enum: [LOW, MODERATE, HIGH, CRITICAL]
+      amount:
+        type: number
+      currency:
+        type: string
+      stepUpRequired:
+        type: boolean
+      createdAt:
+        type: string
+        format: date-time
+    required: [id, consentId, status, riskLevel, amount, currency, stepUpRequired, createdAt]
